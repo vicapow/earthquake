@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title></title>
+    <style>
+
+.spinner {
+  position: absolute;
+  /*background-color: blue;*/
+}
+
+body { margin:0; padding:0; }
+#map { position:absolute; top:0; bottom:0; width:100%; }
+
+    </style>
+     <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.7.3/leaflet.css" />
+  </head>
+  <body>
+     <div id="map"></div>
+    <script src="d3.js" charset="utf-8"></script>
+    <script src="topojson.js" charset="utf-8"></script>
+    <script src="http://cdn.leafletjs.com/leaflet-0.7.3/leaflet.js"></script>
+    <script>
+
+// dimensions of spinner
+var w = 50, h = 50, r = 10
+
+// create a map in the "map" div, set the view to a given place and zoom
+var center = [37.7632642,-122.0641289]
+var map = L.map('map').setView(center, 9)
+
+var Esri_WorldTopoMap = L.tileLayer('http://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, TomTom, Intermap, iPC, USGS, FAO, NPS, NRCAN, GeoBase, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), and the GIS User Community'
+});
+
+var Stamen_Toner = L.tileLayer('http://{s}.tile.stamen.com/toner/{z}/{x}/{y}.png', {
+  attribution: 'Map tiles by <a href="http://stamen.com">Stamen Design</a>, <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a> &mdash; Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>',
+  subdomains: 'abcd',
+  minZoom: 0,
+  maxZoom: 20
+});
+
+var OpenMapSurfer_Roads = L.tileLayer('http://openmapsurfer.uni-hd.de/tiles/roads/x={x}&y={y}&z={z}', {
+  attribution: 'Imagery from <a href="http://giscience.uni-hd.de/">GIScience Research Group @ University of Heidelberg</a> &mdash; Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>'
+});
+
+// Esri_WorldTopoMap.addTo(map);
+// Stamen_Toner.addTo(map);
+OpenMapSurfer_Roads.addTo(map);
+
+// Disable drag and zoom handlers.
+map.dragging.disable();
+map.touchZoom.disable();
+map.doubleClickZoom.disable();
+map.scrollWheelZoom.disable();
+
+// Disable tap handler, if present.
+if (map.tap) map.tap.disable();
+
+function projector(latlng) {
+  var p = map.latLngToLayerPoint(new L.LatLng(latlng[1], latlng[0]));
+  return [p.x, p.y];
+}
+
+var overlay = d3.select(map.getPanes().overlayPane)
+
+var pie = d3.layout.pie().sort(null)
+
+var color = d3.scale.category10()
+color = function(d){
+  return d ? '#2ecc71' : '#e74c3c'
+}
+
+var arc = d3.svg.arc()
+  .innerRadius(0)
+  .outerRadius(r)
+
+d3.json("data/HazusTopoJSON/AirportFlty.shp.json", function(err, data) {
+  if(err) throw err
+  console.log('topojson', data)
+  airports = data;
+  points = topojson.feature(airports, airports.objects.AirportFlty)
+  console.log(points)
+  console.log('overlay', overlay)
+  var spinner = overlay.selectAll('.spinner').data(points.features)
+    .enter().append('svg').attr('class', 'spinner')
+    .style('left', function(d){ return projector(d.geometry.coordinates)[0] - w / 2 + 'px' })
+    .style('top', function(d){ return projector(d.geometry.coordinates)[1] - h / 2 + 'px' })
+    .attr({width: w, height: h })
+    .style('-webkit-transform-origin', w / 2 + 'px ' + h / 2 + 'px')
+
+  var paths = spinner.append('g')
+    .selectAll('path').data(function(d){
+      return pie([Math.random(), Math.random()])
+    })
+      .enter().append('path')
+        .attr('d', arc)
+        .style('fill', function(d, i){ return color(i) })
+  paths.attr('transform', 'translate(' + [ w / 2, h / 2] + ')')
+
+  function loop(sel) {
+    sel.style('-webkit-transform', 'rotate(' + 0 + 'deg)')
+      .transition().duration(function(){
+        return Math.random() * 2000 + 5000
+      }).ease(easeAccelerateThenCoast(1.1))
+      .style('-webkit-transform', 'rotate(' + 3600 + 'deg)')
+      .each('end', function(d){
+        d3.select(this).selectAll('path').style('fill', function(){
+          console.log(d)
+        })
+      })
+  }
+
+  spinner.call(loop)
+
+})
+
+// originally from: http://www.nytimes.com/newsgraphics/2014/senate-model/
+function easeAccelerateThenCoast(acceleration) {
+  if (acceleration < 1) throw new Error("impossible");
+  if (!isFinite(acceleration)) return d3.ease("linear");
+  var speed = 2 * (acceleration - Math.sqrt((acceleration - 1) * acceleration)),
+      t0 = speed / 2 / acceleration;
+  return function(t) {
+    return t < t0 ? acceleration * t * t : speed * t - speed + 1;
+  };
+}
+
+    </script>
+  </body>
+</html>
